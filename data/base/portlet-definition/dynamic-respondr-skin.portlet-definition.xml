@@ -48,10 +48,6 @@
         <value>/ResourceServingWebapp/rs/tango/0.8.90/32x32/apps/preferences-desktop-theme.png</value>
     </parameter>
     <portlet-preference>
-        <name>PREFdynamicSkinEnabled</name>
-        <value>true</value>
-    </portlet-preference>
-    <portlet-preference>
         <name>PREFdynamicSkinName</name>
         <readOnly>false</readOnly>
         <value>testSkin</value>
@@ -60,6 +56,10 @@
          uncomment the following <portlet-preference> element and change the <value>
          to the name of your skin.  -->
     <!--
+    <portlet-preference>
+        <name>PREFdynamicSkinEnabled</name>
+        <value>true</value>
+    </portlet-preference>
     <portlet-preference>
         <name>PREFdynamicSkinName</name>
         <readOnly>false</readOnly>
