@@ -29,12 +29,12 @@
 
     <!--
      | The concrete IPersonManager implementation to be used
-     +-->
    	<bean id="personManager" class="org.apereo.portal.security.provider.SimplePersonManager" />
+     +-->
     <!--
      | Use this bean for Shibboleth authentication
-    <bean id="personManager" class="org.apereo.portal.security.provider.RemoteUserPersonManager" />
      +-->
+    <bean id="personManager" class="org.apereo.portal.security.provider.RemoteUserPersonManager" />
     <!--
     -->
    	<!--

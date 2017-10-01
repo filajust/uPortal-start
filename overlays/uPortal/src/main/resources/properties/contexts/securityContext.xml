@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
 
-    Licensed to Jasig under one or more contributor license
+    Licensed to Apereo under one or more contributor license
     agreements. See the NOTICE file distributed with this work
     for additional information regarding copyright ownership.
-    Jasig licenses this file to you under the Apache License,
+    Apereo licenses this file to you under the Apache License,
     Version 2.0 (the "License"); you may not use this file
     except in compliance with the License.  You may obtain a
     copy of the License at the following location:
@@ -19,76 +19,156 @@
     under the License.
 
 -->
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xmlns:p="http://www.springframework.org/schema/p"
-       xmlns:sec="http://www.springframework.org/schema/security"
-       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
-       http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.1.xsd">
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns="http://www.springframework.org/schema/beans"
+       xmlns:security="http://www.springframework.org/schema/security"
+       xsi:schemaLocation="
+           http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+           http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.2.xsd">
 
-  <description>
-    Security configuration for services management and other sensitive areas of CAS.
-    In most cases it should not be necessary to edit this file as common configuration
-    can be managed by setting properties in the cas.properties file.
-  </description>
+   <security:global-method-security />
 
-  <!-- As of Spring SEC 3.1 -->
-  <sec:http pattern="/services/loggedout.html" security="none"/>
+    <!-- Spring Security pre-authentication -->
+    <security:http auto-config='true'>
+        <security:custom-filter position="PRE_AUTH_FILTER" ref="portalPreAuthenticationFilter" />
+        <security:intercept-url pattern="**" />
+        <security:session-management session-authentication-strategy-ref="sessionAuthenticationStrategy" />
+    </security:http>
 
-  <sec:http pattern="/status/**" entry-point-ref="notAuthorizedEntryPoint" use-expressions="true" auto-config="true">
-    <sec:intercept-url pattern="/status" access="hasIpAddress('${cas.securityContext.status.allowedSubnet}')" />
-  </sec:http>
+    <bean id="sessionAuthenticationStrategy" class="org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy" />
 
-  <sec:http entry-point-ref="casProcessingFilterEntryPoint" auto-config="true">
-    <sec:logout logout-url="/services/logout.html" logout-success-url="/services/loggedOut.html"/>
-    <sec:custom-filter ref="casProcessingFilter" after="CAS_FILTER"/>
-    <sec:intercept-url pattern="/services/**" access="${cas.securityContext.serviceProperties.adminRoles}"/>
-  </sec:http>
+    <bean id="portalPreAuthenticationFilter"
+        class="org.apereo.portal.spring.security.preauth.PortalPreAuthenticatedProcessingFilter">
+        <property name="authenticationManager" ref="authenticationManager" />
+        <property name="clearSecurityContextPriorToPortalAuthentication" value="false" />
+    </bean>
 
-  <sec:authentication-manager alias="casAuthenticationManager">
-    <sec:authentication-provider ref="casAuthenticationProvider"/>
-  </sec:authentication-manager>
+    <bean id="preAuthProvider"
+        class="org.springframework.security.web.authentication.preauth.PreAuthenticatedAuthenticationProvider">
+        <property name="preAuthenticatedUserDetailsService" ref="portalPreAuthenticatedUserDetailsService"/>
+    </bean>
 
-  <bean id="serviceProperties" class="org.springframework.security.cas.ServiceProperties"
-        p:service="${cas.securityContext.serviceProperties.service}"
-        p:sendRenew="false"/>
+    <security:authentication-manager alias="authenticationManager">
+        <security:authentication-provider ref="preAuthProvider"/>
+    </security:authentication-manager>
 
-  <bean id="casProcessingFilter" class="org.springframework.security.cas.web.CasAuthenticationFilter"
-        p:authenticationManager-ref="casAuthenticationManager"
-        p:filterProcessesUrl="/services/j_acegi_cas_security_check">
-    <property name="authenticationSuccessHandler">
-      <bean class="org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler"
-            p:alwaysUseDefaultTargetUrl="true"
-            p:defaultTargetUrl="/services/manage.html"/>
-    </property>
-    <property name="authenticationFailureHandler">
-      <bean class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler">
-        <constructor-arg index="0" value="/authorizationFailure.html"/>
-      </bean>
-    </property>
-  </bean>
+    <!--  String encryption service -->
+    <bean id="stringEncryptionService" class="org.apereo.portal.security.JasyptPBEStringEncryptionServiceImpl">
+        <property name="stringEncryptor">
+            <bean class="org.jasypt.encryption.pbe.StandardPBEStringEncryptor">
 
-  <bean id="casProcessingFilterEntryPoint" class="org.springframework.security.cas.web.CasAuthenticationEntryPoint"
-        p:loginUrl="${cas.securityContext.casProcessingFilterEntryPoint.loginUrl}"
-        p:serviceProperties-ref="serviceProperties"/>
+                <!-- Before using the string encryption service you should first set a password.  The default
+                     password works but is not secure.
+                -->
+                <property name="password" value="${org.apereo.portal.portlets.passwordEncryptionKey}"/>
 
-  <bean id="notAuthorizedEntryPoint" class="org.springframework.security.web.authentication.Http403ForbiddenEntryPoint" />
+                <!--
+                    Example BouncyCastle-powered AES encryption
 
-  <bean id="casAuthenticationProvider" class="org.springframework.security.cas.authentication.CasAuthenticationProvider"
-        p:key="my_password_for_this_auth_provider_only"
-        p:serviceProperties-ref="serviceProperties"
-        p:userDetailsService-ref="userDetailsService">
-    <property name="ticketValidator">
-      <bean class="org.jasig.cas.client.validation.Cas20ServiceTicketValidator">
-        <constructor-arg index="0" value="${cas.securityContext.ticketValidator.casServerUrlPrefix}"/>
-      </bean>
-    </property>
-  </bean>
+                    To use AES encryption, uncomment the following section, add
+                    the unrestricted JCE provider files to your JVM, and add
+                    the JVM-version-appropriate BouncyCastle dependency to uPortal
+                -->
+                <!--
+                <property name="algorithm" value="PBEWITHSHA256AND128BITAES-CBC-BC"/>
+                <property name="provider">
+                    <bean class="org.bouncycastle.jce.provider.BouncyCastleProvider"/>
+                </property>
+                -->
+            </bean>
+        </property>
+    </bean>
 
-  <!--
-  <bean id="idpLoginUrl" class="java.lang.String">
-    <constructor-arg value="${org.jasig.portal.idp-login.IdpLoginUrl}"/>
-  </bean> 
-  -->
+    <!-- These are used in CasAssertionSecurityContext.  Putting them here just to avoid
+         introducing static variables, or re-reading security.properties repeatedly. -->
+    <bean id="casCopyAssertionAttributesToUserAttributes" class="java.lang.String">
+        <constructor-arg index="0" value="${org.apereo.portal.security.cas.assertion.copyAttributesToUserAttributes:false}"/>
+    </bean>
+    <bean id="decryptCredentialToPassword" class="java.lang.String">
+        <constructor-arg index="0" value="${org.apereo.portal.security.cas.assertion.decryptCredentialToPassword:false}"/>
+    </bean>
+    <bean id="decryptCredentialToPasswordPrivateKey" class="java.lang.String">
+        <constructor-arg index="0" value="${org.apereo.portal.security.cas.assertion.decryptCredentialToPasswordPrivateKey:''}"/>
+    </bean>
+    <bean id="decryptCredentialToPasswordAlgorithm" class="java.lang.String">
+        <constructor-arg index="0" value="${org.apereo.portal.security.cas.assertion.decryptCredentialToPasswordAlgorithm:'RSA'}"/>
+    </bean>
+
+    <!--
+     | Some operations in the portal rely on evaluating whether a permission is
+     | granted over every portlet in the registry.  As the number of portlets
+     | (or user groups) gets large, these operations can exhibit poor performance.
+     | This bean is designed to pre-load the AuthZ evaluation cache so that the
+     | answers are already known when needed.
+     +-->
+    <bean id="portletPermissionsCachePrimer" class="org.apereo.portal.security.provider.PortletPermissionsCachePrimer">
+        <property name="executor">
+            <bean class="org.springframework.scheduling.concurrent.ThreadPoolExecutorFactoryBean">
+                <property name="corePoolSize" value="2" />
+                <property name="maxPoolSize" value="7" />
+                <property name="queueCapacity" value="0" />
+                <property name="threadGroupName" value="uP-PermCachePrime" />
+                <property name="threadNamePrefix" value="uP-PermCachePrime-" />
+                <property name="threadPriority" value="${org.apereo.portal.task.exec.threadPool.threadPriority}" />
+                <property name="keepAliveSeconds" value="${org.apereo.portal.task.exec.threadPool.keepAliveSeconds}" />
+                <property name="daemon" value="true" />
+                <property name="allowCoreThreadTimeOut" value="true" />
+                <property name="rejectedExecutionHandler" ref="loggingAbortHandler" />
+            </bean>
+        </property>
+        <property name="permissionsMap">
+            <!-- Use this property to tell the bean what to pre-load.  Keys are
+                 permissions owners;  value(s) are activities -->
+            <map>
+                <entry key="UP_PORTLET_SUBSCRIBE">
+                    <set>
+                        <value>BROWSE</value>
+                        <value>SUBSCRIBE</value>
+                    </set>
+                </entry>
+                <!-- Useful in delegated administration scenarios involving portlets.
+                     Typically delegated authority is granted to MANAGE_EXPIRED, but
+                     since MANAGE_* permissions are hierarchical we need all of them. -->
+                <!-- entry key="UP_PORTLET_PUBLISH">
+                    <set>
+                        <value>MANAGE_CREATED</value>
+                        <value>MANAGE_APPROVED</value>
+                        <value>MANAGE</value>
+                        <value>MANAGE_EXPIRED</value>
+                        <value>MANAGE_MAINTENANCE</value>
+                    </set>
+                </entry -->
+            </map>
+        </property>
+    </bean>
+
+    <!--
+     | Spring-managed instance of Cas20ProxyReceivingTicketValidationFilter.  This setup allows us
+     | to configure CAS authentication in the preferred, externalizable way.  (It means we can
+     | source configuration settings from the primaryPropertyPlaceholderConfigurer.)
+     +-->
+    <bean name="ticketValidationFilter" class="org.jasig.cas.client.validation.Cas20ProxyReceivingTicketValidationFilter">
+        <property name="service" value="${cas.ticketValidationFilter.service}" />
+        <property name="proxyReceptorUrl" value="${cas.ticketValidationFilter.proxyReceptorUrl}" />
+        <property name="ticketValidator">
+            <bean class="org.jasig.cas.client.validation.Cas20ServiceTicketValidator">
+                <constructor-arg index="0" value="${cas.ticketValidationFilter.ticketValidator.server}" />
+                <property name="proxyCallbackUrl" value="${cas.ticketValidationFilter.ticketValidator.proxyCallbackUrl}" />
+            </bean>
+        </property>
+        <!--
+         | For CAS PGT replication for CAS ClearPass in a clustered uPortal environment.
+         | See "Replicating PGT using "proxyGrantingTicketStorageClass" and Distributed Caching" in
+         | https://wiki.jasig.org/display/CASC/Configuring+the+Jasig+CAS+Client+for+Java+in+the+web.xml.
+         | If CAS ClearPass is not enabled in security.properties, this parameter has no effect.
+         +-->
+        <property name="proxyGrantingTicketStorage">
+            <bean class="org.jasig.cas.client.proxy.EhcacheBackedProxyGrantingTicketStorageImpl" />
+        </property>
+    </bean>
+
+   <bean>
+        <property name="JJTest" value="0"/>
+   </bean>
 
 </beans>

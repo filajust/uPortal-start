@@ -32,7 +32,7 @@
                 <i class="fa fa-user-plus" aria-hidden="true"></i>
                 <spring:message code="new.user.question"/>
             </a>
-            <a id="portalLoginLink" class="btn" title="<spring:message code="sign.in"/>" href="${idpLoginUrl}"><spring:message code="sign.in"/>
+            <a id="portalLoginLink" class="btn" title="<spring:message code="sign.in"/>" href="${idpLoginUrl}">
                 <i class="fa fa-sign-in" aria-hidden="true"></i>
                 <spring:message code="sign.in"/>
             </a>
